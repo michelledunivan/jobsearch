@@ -1,0 +1,53 @@
+name: Daily VP Analytics & Insights Job Search
+
+on:
+  schedule:
+    - cron: '0 13 * * *' # 6:00 AM Phoenix (AZ has no DST, so 13:00 UTC is correct year-round)
+  workflow_dispatch:
+
+jobs:
+  search-jobs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Verify secrets
+        run: |
+          echo "Adzuna App ID set: $([ -n "$ADZUNA_APP_ID" ] && echo YES || echo NO)"
+          echo "Adzuna App Key set: $([ -n "$ADZUNA_APP_KEY" ] && echo YES || echo NO)"
+          echo "Gmail address set: $([ -n "$GMAIL_ADDRESS" ] && echo YES || echo NO)"
+          echo "App password set: $([ -n "$GMAIL_APP_PASSWORD" ] && echo YES || echo NO)"
+        env:
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        # (fixed a bug from your original: `"$GMAIL_APP_PASSWORD" ]&&` was missing
+        # the space before &&, which would error in bash)
+
+      - name: Run job search
+        env:
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          # Defaults to 240000 in the script; override here if the bar moves.
+          SALARY_FLOOR: ${{ vars.SALARY_FLOOR }}
+        run: python job_search.py
+
+      - name: Upload Excel as backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-jobs-${{ github.run_id }}
+          path: output/*.xlsx
+          retention-days: 7
